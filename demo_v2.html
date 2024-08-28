@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Translation Page</title>
+</head>
+<body>
+    <h1>在线翻译</h1>
+    <input type="text" id="textInput" placeholder="请输入要翻译的文本">
+    <button id="translateButton">翻译</button>
+    <div id="translationResult" style="margin-top: 20px; font-weight: bold;"></div>
+
+    <script>
+        document.getElementById("translateButton").addEventListener("click", function() {
+    const textToTranslate = document.getElementById("textInput").value;
+
+    // 重置翻译结果区域
+    const resultArea = document.getElementById("translationResult");
+    resultArea.innerHTML = ""; // 清空之前的内容
+
+    fetch('https://aidemo.youdao.com/llmTrans', {
+        method: 'POST',
+        headers: {
+            'accept': 'text/event-stream',
+            'content-type': 'multipart/form-data; boundary=----WebKitFormBoundaryHMWThhYOFzFjgAEc'
+        },
+        body: `------WebKitFormBoundaryHMWThhYOFzFjgAEc\r\nContent-Disposition: form-data; name="q"\r\n\r\n${textToTranslate}\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc\r\nContent-Disposition: form-data; name="from"\r\n\r\nauto\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc\r\nContent-Disposition: form-data; name="to"\r\n\r\nauto\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc\r\nContent-Disposition: form-data; name="prompt"\r\n\r\n\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc\r\nContent-Disposition: form-data; name="streamType"\r\n\r\nincrement\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc\r\nContent-Disposition: form-data; name="polishOption"\r\n\r\n0\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc\r\nContent-Disposition: form-data; name="expandOption"\r\n\r\n0\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc\r\nContent-Disposition: form-data; name="handleOption"\r\n\r\n0\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc--\r\n`
+    })
+    .then(response => {
+        const reader = response.body.getReader();
+        let decoder = new TextDecoder('utf-8');
+        
+        return reader.read().then(function processText({ done, value }) {
+            if (done) {
+                return;
+            }
+            
+            let chunk = decoder.decode(value);
+            
+            // 处理 event-stream 响应并提取翻译结果
+            const lines = chunk.split('\n');
+            lines.forEach(line => {
+                if (line.startsWith('data:')) {
+                    const data = JSON.parse(line.replace('data:', '').trim());
+                    if (data.transIncre) {
+                        // 动态更新翻译结果区域
+                        resultArea.innerHTML += data.transIncre;
+                    }
+                }
+            });
+            
+            return reader.read().then(processText);
+        });
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+});
+    </script>
+</body>
+</html>

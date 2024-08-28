@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Translation Page</title>
+    <!-- 引入 Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 800px;
+            margin-top: 50px;
+        }
+        .form-group textarea {
+            resize: none;
+            height: 150px;
+        }
+        .result-box {
+            border: 1px solid #ced4da;
+            border-radius: .25rem;
+            background-color: #fff;
+            padding: 15px;
+            min-height: 150px;
+            margin-top: 20px;
+            position: relative;
+        }
+        #translationResult {
+            white-space: pre-wrap;
+            color: #495057;
+            font-size: 1.25rem;
+        }
+        .copy-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+        #copyToast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">在线翻译</h1>
+        <div class="form-group">
+            <label for="textInput">输入要翻译的文本:</label>
+            <textarea class="form-control" id="textInput" placeholder="请输入文本..."></textarea>
+        </div>
+        <button id="translateButton" class="btn btn-primary btn-block">翻译</button>
+        
+        <div class="result-box">
+            <label for="translationResult">翻译结果:</label>
+            <button id="copyButton" class="btn btn-secondary btn-sm copy-button">复制</button>
+            <div id="translationResult"></div>
+        </div>
+    </div>
+
+    <!-- Toast 提示框 -->
+    <div id="copyToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-delay="1000">
+        <div class="toast-header">
+            <strong class="mr-auto">提示</strong>
+            <small>刚刚</small>
+            <button type="button" class="ml-2 mb-1 close" data-dismiss="toast" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+        </div>
+        <div class="toast-body">
+            翻译结果已复制到剪贴板！
+        </div>
+    </div>
+
+    <!-- 引入 Bootstrap 和 jQuery JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        document.getElementById("translateButton").addEventListener("click", function() {
+            const textToTranslate = document.getElementById("textInput").value;
+
+            const resultArea = document.getElementById("translationResult");
+            resultArea.innerHTML = ""; 
+
+            fetch('https://aidemo.youdao.com/llmTrans', {
+                method: 'POST',
+                headers: {
+                    'accept': 'text/event-stream',
+                    'content-type': 'multipart/form-data; boundary=----WebKitFormBoundaryHMWThhYOFzFjgAEc'
+                },
+                body: `------WebKitFormBoundaryHMWThhYOFzFjgAEc\r\nContent-Disposition: form-data; name="q"\r\n\r\n${textToTranslate}\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc\r\nContent-Disposition: form-data; name="from"\r\n\r\nauto\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc\r\nContent-Disposition: form-data; name="to"\r\n\r\nauto\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc\r\nContent-Disposition: form-data; name="prompt"\r\n\r\n\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc\r\nContent-Disposition: form-data; name="streamType"\r\n\r\nincrement\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc\r\nContent-Disposition: form-data; name="polishOption"\r\n\r\n0\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc\r\nContent-Disposition: form-data; name="expandOption"\r\n\r\n0\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc\r\nContent-Disposition: form-data; name="handleOption"\r\n\r\n0\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc--\r\n`
+            })
+            .then(response => {
+                const reader = response.body.getReader();
+                let decoder = new TextDecoder('utf-8');
+                
+                return reader.read().then(function processText({ done, value }) {
+                    if (done) {
+                        return;
+                    }
+                    
+                    let chunk = decoder.decode(value);
+                    
+                    const lines = chunk.split('\n');
+                    lines.forEach(line => {
+                        if (line.startsWith('data:')) {
+                            const data = JSON.parse(line.replace('data:', '').trim());
+                            if (data.transIncre) {
+                                resultArea.innerHTML += data.transIncre;
+                            }
+                        }
+                    });
+                    
+                    return reader.read().then(processText);
+                });
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        });
+
+        // 复制翻译结果到剪贴板
+        document.getElementById("copyButton").addEventListener("click", function() {
+            const resultText = document.getElementById("translationResult").textContent;
+            if (resultText) {
+                navigator.clipboard.writeText(resultText).then(function() {
+                    $('#copyToast').toast('show'); // 显示 Toast
+                }, function(err) {
+                    console.error("无法复制文本: ", err);
+                });
+            }
+        });
+    </script>
+</body>
+</html>

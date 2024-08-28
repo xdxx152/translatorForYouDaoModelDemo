@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实时翻译</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #translationResult {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+
+<h1>实时翻译</h1>
+
+<label for="textInput">输入待翻译文本：</label><br>
+<input type="text" id="textInput" placeholder="输入文本并按下 Enter" style="width: 100%; padding: 10px;"><br>
+
+<div id="translationResult">翻译结果将显示在这里...</div>
+
+<script>
+    document.getElementById('textInput').addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') {
+            translateText();
+        }
+    });
+
+    function translateText() {
+        const textInput = document.getElementById('textInput').value;
+        const translationResult = document.getElementById('translationResult');
+
+        // 清空当前翻译结果
+        translationResult.textContent = '正在翻译...';
+
+        // 创建SSE请求
+        const source = new EventSource('https://aidemo.youdao.com/llmTrans');
+
+        // 设置请求头和POST数据
+        const requestHeaders = new Headers({
+            'Content-Type': 'multipart/form-data; boundary=----WebKitFormBoundaryHMWThhYOFzFjgAEc',
+            'accept': 'text/event-stream',
+        });
+
+        const postData = `------WebKitFormBoundaryHMWThhYOFzFjgAEc\r
+Content-Disposition: form-data; name="q"\r\n\r\n ${textInput}\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc\r
+Content-Disposition: form-data; name="from"\r\n\r\nauto\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc\r
+Content-Disposition: form-data; name="to"\r\n\r\nauto\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc\r
+Content-Disposition: form-data; name="streamType"\r\n\r\nincrement\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc\r
+Content-Disposition: form-data; name="polishOption"\r\n\r\n0\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc\r
+Content-Disposition: form-data; name="expandOption"\r\n\r\n0\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc\r
+Content-Disposition: form-data; name="handleOption"\r\n\r\n0\r\n------WebKitFormBoundaryHMWThhYOFzFjgAEc--\r\n`;
+
+        // 监听SSE消息
+        source.addEventListener('message', function(event) {
+            const data = JSON.parse(event.data);
+            translationResult.textContent += data.transIncre;
+        });
+
+        // 监听开始事件
+        source.addEventListener('begin', function(event) {
+            console.log('翻译开始:', event.data);
+        });
+
+        // 监听结束事件
+        source.addEventListener('end', function(event) {
+            console.log('翻译完成:', event.data);
+            source.close(); // 关闭连接
+        });
+
+        // 发送POST请求
+        fetch('https://aidemo.youdao.com/llmTrans', {
+            method: 'POST',
+            headers: requestHeaders,
+            body: postData
+        }).catch(error => {
+            console.error('请求错误:', error);
+            translationResult.textContent = '翻译请求失败，请重试。';
+        });
+    }
+</script>
+
+</body>
+</html>
